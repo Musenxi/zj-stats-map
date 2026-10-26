@@ -1,10 +1,11 @@
 import { formatValue } from '../data/indicators.js'
 import { createLineOption } from './lineOptions.js'
-
-const CITY_COLORS = ['#267768', '#4169b1', '#bd7135', '#8954a1', '#bb4d68', '#53862c', '#297f98', '#a18a29', '#665dc1', '#995545', '#527263']
+import { CITY_COLORS } from './colors.js'
+import { createIndustryOption } from './industryOptions.js'
 
 export function createExploreOption(snapshot, type) {
   if (type === 'line') return createLineOption(snapshot)
+  if (type === 'radar' || type === 'stack') return createIndustryOption(snapshot, type)
   const { indicator, year, selectedCities } = snapshot.getState()
   const metadata = snapshot.indicators.get(indicator)
   const cities = [...snapshot.regions.values()].filter((region) => region.level === 'city')

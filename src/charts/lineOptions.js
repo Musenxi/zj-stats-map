@@ -1,7 +1,5 @@
 import { formatValue } from '../data/indicators.js'
-
-const COLORS = ['#267768', '#4169b1', '#bd7135', '#8954a1', '#bb4d68', '#53862c',
-  '#297f98', '#a18a29', '#665dc1', '#995545', '#527263']
+import { CITY_COLORS } from './colors.js'
 
 export function createLineOption(store) {
   const { indicator, year, selectedCities } = store.getState()
@@ -41,7 +39,7 @@ export function createLineOption(store) {
       id: adcode, name: store.regions.get(adcode).short_name, type: 'line',
       data: store.getSeries(indicator, adcode).map(([pointYear, value]) => [String(pointYear), value]),
       connectNulls: false, smooth: false, symbolSize: 7,
-      itemStyle: { color: COLORS[cities.findIndex((city) => city.adcode === adcode) % COLORS.length] },
+      itemStyle: { color: CITY_COLORS[cities.findIndex((city) => city.adcode === adcode) % CITY_COLORS.length] },
       lineStyle: { width: 2 }, emphasis: { focus: 'series' },
       // Draw annotations once so multi-city comparisons have one current-year marker.
       ...(index === 0 ? {

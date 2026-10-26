@@ -52,7 +52,7 @@ async function bootstrap() {
     cleanups.push(() => cityMap.destroy())
     const cities = [...store.regions.values()].filter((region) => region.level === 'city')
     const announce = (message) => { document.querySelector('#announcer').textContent = message }
-    const chartNames = { pie: '人口占比', rank: '城市排行', line: '历年趋势' }
+    const chartNames = { pie: '人口占比', rank: '城市排行', line: '历年趋势', radar: '产业占比', stack: '产业增加值' }
 
     function openChart(type, trigger) {
       const snapshot = createChartSnapshot(store, type)
@@ -63,7 +63,9 @@ async function bootstrap() {
       panel.body.classList.add('chart-body')
       const context = document.createElement('p')
       context.className = 'chart-context'
-      context.textContent = `${type === 'line' ? `${store.years[0]} - ${store.years.at(-1)}` : year} 年 · ${metadata.label}（${metadata.unit}），${scope}`
+      const metric = type === 'radar' ? '三次产业占比（%）'
+        : type === 'stack' ? '三次产业增加值（亿元）' : `${metadata.label}（${metadata.unit}）`
+      context.textContent = `${type === 'line' ? `${store.years[0]} - ${store.years.at(-1)}` : year} 年 · ${metric}，${scope}`
       const message = document.createElement('p')
       message.className = 'chart-message'
       message.setAttribute('role', 'status')
@@ -164,6 +166,8 @@ async function bootstrap() {
             <button type="button" data-chart="pie"><strong>人口占比</strong><span>环形图 · 各市常住人口构成</span></button>
             <button type="button" data-chart="rank"><strong>城市排行</strong><span>条形图 · 当前指标大小对比</span></button>
             <button type="button" data-chart="line"><strong>历年趋势</strong><span>折线图 · 多城市年度变化</span></button>
+            <button type="button" data-chart="radar"><strong>产业占比</strong><span>雷达图 · 三次产业结构对比</span></button>
+            <button type="button" data-chart="stack"><strong>产业增加值</strong><span>堆叠图 · 三次产业规模对比</span></button>
           </div>`
         panel.body.querySelectorAll('[data-chart]').forEach((button) => button.addEventListener('click', () => openChart(button.dataset.chart, button)))
       },

@@ -7,7 +7,7 @@ export function createChartSnapshot(store, type) {
   const state = Object.freeze({
     ...current,
     // Density is not additive. The composition chart always uses population.
-    indicator: type === 'pie' ? 'pop_resident' : current.indicator,
+    indicator: ({ pie: 'pop_resident', radar: 'share_primary', stack: 'gdp_primary' })[type] ?? current.indicator,
     selectedCities: Object.freeze(selectedCities),
   })
   return { ...store, getState: () => state }
