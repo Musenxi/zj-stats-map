@@ -9,221 +9,225 @@ import { createIndicatorPicker } from './ui/indicatorPicker.js'
 import { createLegend } from './ui/legend.js'
 import { createPlayer } from './ui/player.js'
 import { createTimeline } from './ui/timeline.js'
+import { createWindowManager } from './ui/windows.js'
+import { createChartSnapshot } from './charts/snapshot.js'
 
 const app = document.querySelector('#app')
 app.innerHTML = `
-  <main>
-    <header><p class="eyebrow">ZHEJIANG · WEBGIS</p><h1>浙江省统计专题地图</h1>
-      <p class="subtitle">人口与密度 · 市级统计数据</p></header>
-    <section id="status" role="status" aria-live="polite">正在加载统计数据与市级边界…</section>
-    <section id="content" hidden>
-      <div class="metrics" id="metrics"></div>
-      <section class="panel map-panel" aria-labelledby="map-title">
-        <div class="panel-heading map-heading">
-          <div><h2 id="map-title">市级专题地图</h2><p id="map-subtitle"></p></div>
-          <div id="indicator-picker" class="indicator-picker"></div>
-        </div>
-        <section id="timeline" class="timeline" aria-label="年份与播放控制"></section>
-        <div class="map-layout">
-          <div class="map-area">
-            <div id="map" tabindex="0" role="region" aria-label="浙江省市级专题地图，可用方向键平移、加减键缩放；也可在下方数据表选择城市"></div>
-            <button id="reset-view" class="map-reset" type="button">返回全省</button>
-            <p class="map-hint">点击城市可多选，再次点击取消</p>
-          </div>
-          <aside class="map-sidebar">
-            <section id="legend" aria-label="分级设色图例"></section>
-            <section class="selection-panel" aria-labelledby="selection-title">
-              <div class="selection-heading"><h3 id="selection-title">已选城市</h3>
-                <button id="clear-selection" type="button" disabled>清空</button></div>
-              <p id="selection-status" class="sr-only" role="status" aria-live="polite"></p>
-              <div id="selection"></div>
-            </section>
-          </aside>
-        </div>
-      </section>
-      <section class="panel chart-panel" aria-labelledby="line-title">
-        <div class="panel-heading chart-heading">
-          <div><h2 id="line-title">城市历年趋势</h2><p id="line-subtitle"></p></div>
-          <span>点击数据点可选年</span>
-        </div>
-        <p id="chart-status" class="chart-message" role="status">正在加载趋势图…</p>
-        <div id="line-chart" class="line-chart"></div>
-        <p class="chart-note">2020 年起含普查口径调整；2025 年为初步数据。缺失年份的折线保留断点。</p>
-      </section>
-      <section class="panel">
-        <div class="panel-heading"><h2>市级数据概览</h2><span id="year"></span></div>
-        <div class="table-scroll"><table>
-          <caption class="sr-only">各市当前年份的统计数据，点击城市名称可选择或取消选择</caption>
-          <thead><tr><th scope="col">城市</th><th scope="col" data-indicator="pop_resident">常住人口（万人）</th>
-            <th scope="col" data-indicator="pop_density">人口密度（人/km²）</th><th scope="col">行政区面积（km²）</th></tr></thead>
-          <tbody id="cities"></tbody>
-        </table></div>
-      </section>
-      <aside class="note"><strong>数据口径</strong><p id="data-note"></p>
-        <p>人口密度读取预计算值；缺失值显示为“无数据”。</p>
-        <p>边界原始来源、许可、坐标参考与区划年份尚待确认。</p></aside>
-    </section>
+  <main class="map-workspace" aria-label="浙江省统计专题地图工作台">
+    <div id="map" tabindex="0" role="region" aria-label="浙江省市级专题地图，方向键平移，加减键缩放。城市也可在控制面板中选择。"></div>
+    <nav class="workspace-tools" aria-label="地图工作台工具">
+      <h1>浙江统计地图</h1>
+      <div class="tool-buttons">
+        <button type="button" data-open="controls">控制面板</button>
+        <button type="button" data-open="legend">图例</button>
+        <button type="button" data-open="timeline">时间轴</button>
+        <button type="button" data-open="notes">数据说明</button>
+        <button type="button" id="reset-view">返回全省</button>
+        <button type="button" id="close-all">关闭全部</button>
+        <button type="button" data-open="charts" class="primary">＋ 新建图表</button>
+      </div>
+    </nav>
+    <div id="windows" class="window-layer"></div>
+    <p id="window-help" class="sr-only">可拖动标题栏移动窗口，也可聚焦标题栏后用方向键移动，按住 Shift 加快移动。窗口右下角可调整大小，Escape 关闭当前窗口。</p>
+    <p id="announcer" class="sr-only" role="status" aria-live="polite"></p>
   </main>`
-
-function metric(label, value) {
-  const card = document.createElement('div')
-  card.className = 'metric'
-  const number = document.createElement('strong')
-  number.textContent = value
-  const caption = document.createElement('span')
-  caption.textContent = label
-  card.append(number, caption)
-  return card
-}
 
 const cleanups = []
 const controller = new AbortController()
+const windows = createWindowManager({ target: document.querySelector('#windows'), fallbackFocus: document.querySelector('[data-open="controls"]') })
+cleanups.push(() => windows.destroy())
+const loading = windows.open({ key: 'status', title: '加载地图', width: 340, placement: 'center' })
+loading.body.setAttribute('role', 'status')
+loading.body.textContent = '正在加载统计数据与市级边界…'
 let disposed = false
 
 async function bootstrap() {
-  const status = document.querySelector('#status')
   try {
     const store = createStore(await loadData({ signal: controller.signal }))
     if (disposed) return
     const player = createPlayer(store)
     cleanups.push(() => player.destroy())
-    const cities = [...store.regions.values()].filter((region) => region.level === 'city')
-    document.querySelector('#metrics').append(
-      metric('地级市', cities.length),
-      metric('年份范围', `${store.years[0]}–${store.years.at(-1)}`),
-      metric('启用指标', store.indicators.size),
-      metric('统计记录', store.recordCount),
-    )
-    const rows = new Map(cities.map((region) => {
-      const row = document.createElement('tr')
-      const heading = document.createElement('th')
-      heading.scope = 'row'
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'city-button'
-      button.textContent = region.name
-      button.addEventListener('click', () => toggleCity(store, region.adcode))
-      heading.append(button)
-      row.append(heading, ...Array.from({ length: 3 }, () => document.createElement('td')))
-      return [region.adcode, row]
-    }))
-    document.querySelector('#cities').replaceChildren(...rows.values())
-    const render = ({ indicator, year, selectedCities }) => {
-      const metadata = store.indicators.get(indicator)
-      document.querySelector('#year').textContent = `${year} 年`
-      document.querySelector('#map-subtitle').textContent = `${year} 年 · ${metadata.label}（${metadata.unit}）`
-      document.querySelector('#line-subtitle').textContent = `${metadata.label}（${metadata.unit}） · ${store.years[0]}–${store.years.at(-1)}`
-      for (const region of cities) {
-        const row = rows.get(region.adcode)
-        const selected = selectedCities.includes(region.adcode)
-        row.classList.toggle('selected', selected)
-        row.querySelector('button').setAttribute('aria-pressed', String(selected))
-        const values = [
-          formatValue(store.getValue('pop_resident', year, region.adcode), store.indicators.get('pop_resident')),
-          formatValue(store.getValue('pop_density', year, region.adcode), store.indicators.get('pop_density')),
-          formatValue(region.area_land, { decimals: 1 }),
-        ]
-        row.querySelectorAll('td').forEach((cell, index) => { cell.textContent = values[index] })
-      }
-      document.querySelectorAll('[data-indicator]').forEach((heading) => {
-        heading.classList.toggle('active-indicator', heading.dataset.indicator === indicator)
-      })
-      const selection = document.querySelector('#selection')
-      if (!selectedCities.length) {
-        const empty = document.createElement('p')
-        empty.className = 'selection-empty'
-        empty.textContent = '从地图或下方数据表选择城市，查看当前指标数值。'
-        selection.replaceChildren(empty)
-      } else {
-        selection.replaceChildren(...selectedCities.map((adcode) => {
-          const item = document.createElement('p')
-          item.className = 'selected-city'
-          const name = document.createElement('span')
-          name.textContent = store.regions.get(adcode).short_name
-          const value = document.createElement('strong')
-          const number = store.getValue(indicator, year, adcode)
-          value.textContent = number === null ? '无数据' : `${formatValue(number, metadata)} ${metadata.unit}`
-          item.append(name, value)
-          return item
-        }))
-      }
-      document.querySelector('#clear-selection').disabled = !selectedCities.length
-      document.querySelector('#selection-status').textContent = selectedCities.length
-        ? `已选择 ${selectedCities.map((adcode) => store.regions.get(adcode).short_name).join('、')}`
-        : '尚未选择城市'
-    }
-    render(store.getState())
-    cleanups.push(store.subscribe(render))
     const classifications = createClassifications(store)
-    cleanups.push(
-      createIndicatorPicker({ target: document.querySelector('#indicator-picker'), store }),
-      createLegend({ target: document.querySelector('#legend'), store, classifications }),
-      createTimeline({ target: document.querySelector('#timeline'), store, player }),
-    )
-    document.querySelector('#data-note').textContent = store.indicators.get('pop_resident').note
-    document.querySelector('#content').hidden = false
     const cityMap = createCityMap({ target: document.querySelector('#map'), store, classifications })
     cleanups.push(() => cityMap.destroy())
-    const resetButton = document.querySelector('#reset-view')
-    const clearButton = document.querySelector('#clear-selection')
-    const clearSelection = () => store.setState({ selectedCities: [] })
-    resetButton.addEventListener('click', cityMap.resetView)
-    clearButton.addEventListener('click', clearSelection)
-    cleanups.push(() => {
-      resetButton.removeEventListener('click', cityMap.resetView)
-      clearButton.removeEventListener('click', clearSelection)
-    })
-    status.textContent = '统计数据与 11 市地图已就绪'
-    status.classList.add('success')
-    // Load only the ECharts modules used by the trend view in a separate chunk.
-    const chartStatus = document.querySelector('#chart-status')
-    const chartTarget = document.querySelector('#line-chart')
-    const loadChart = async () => {
-      chartStatus.textContent = '正在加载趋势图…'
-      chartTarget.hidden = false
-      try {
-        const { createLineChart } = await import('./charts/line.js')
-        if (disposed) return
-        cleanups.push(createLineChart({ target: chartTarget, store, onSelectYear: (year) => {
-          player.pause()
-          store.setState({ year })
-        } }))
-        const updateChartStatus = ({ selectedCities }) => {
-          chartStatus.hidden = selectedCities.length > 0
-          chartStatus.textContent = '从地图或下方数据表选择城市，比较历年变化。'
+    const cities = [...store.regions.values()].filter((region) => region.level === 'city')
+    const announce = (message) => { document.querySelector('#announcer').textContent = message }
+    const chartNames = { pie: '人口占比', rank: '城市排行', line: '历年趋势' }
+
+    function openChart(type, trigger) {
+      const snapshot = createChartSnapshot(store, type)
+      const { indicator, year, selectedCities } = snapshot.getState()
+      const metadata = snapshot.indicators.get(indicator)
+      const scope = store.getState().selectedCities.length ? `所选 ${selectedCities.length} 市` : `全省 ${cities.length} 市`
+      const panel = windows.open({ title: chartNames[type], width: type === 'line' ? 640 : 540, placement: 'chart', trigger })
+      panel.body.classList.add('chart-body')
+      const context = document.createElement('p')
+      context.className = 'chart-context'
+      context.textContent = `${type === 'line' ? `${store.years[0]} - ${store.years.at(-1)}` : year} 年 · ${metadata.label}（${metadata.unit}），${scope}`
+      const message = document.createElement('p')
+      message.className = 'chart-message'
+      message.setAttribute('role', 'status')
+      const target = document.createElement('div')
+      target.className = 'chart-canvas'
+      target.setAttribute('role', 'img')
+      target.setAttribute('aria-label', `${context.textContent}，${chartNames[type]}`)
+      const note = document.createElement('p')
+      note.className = 'chart-note'
+      note.textContent = type === 'line'
+        ? '2020 年起含普查口径调整，2025 年为初步数据。点击数据点可切换地图年份。'
+        : `${year === 2025 ? '2025 年为初步数据。' : ''}${type === 'pie' ? '占比按当前范围内有效人口值计算，缺失值不计入。' : '缺失值不参与排名。'}点击图形可选择城市。`
+      panel.body.append(context, message, target, note)
+      const loadChart = async () => {
+        message.replaceChildren(document.createTextNode('正在生成图表…'))
+        message.hidden = false
+        target.hidden = true
+        let moduleLoaded = false
+        try {
+          const { createExploreChart } = await import('./charts/explore.js')
+          moduleLoaded = true
+          if (disposed || panel.closed) return
+          target.hidden = false
+          const cleanup = createExploreChart({ target, snapshot, type, onSelectCity: (adcode) => toggleCity(store, adcode), onSelectYear: (selectedYear) => {
+            player.pause()
+            store.setState({ year: selectedYear })
+          } })
+          panel.onClose(cleanup)
+          message.hidden = true
+        } catch (error) {
+          if (disposed || panel.closed) return
+          target.hidden = true
+          message.textContent = `图表生成失败：${error.message}`
+          const retry = document.createElement('button')
+          retry.type = 'button'
+          retry.textContent = moduleLoaded ? '重试' : '重新加载页面'
+          retry.addEventListener('click', moduleLoaded ? loadChart : () => window.location.reload(), { once: true })
+          message.append(retry)
         }
-        updateChartStatus(store.getState())
-        cleanups.push(store.subscribe(updateChartStatus))
-      } catch (error) {
-        if (disposed) return
-        console.error('趋势图加载失败', error)
-        chartTarget.hidden = true
-        chartStatus.textContent = `趋势图加载失败：${error.message}`
-        const retry = document.createElement('button')
-        retry.type = 'button'
-        retry.textContent = '重新加载页面'
-        retry.addEventListener('click', () => window.location.reload(), { once: true })
-        chartStatus.append(retry)
       }
+      void loadChart()
+      announce(`已新建${chartNames[type]}窗口，${context.textContent}`)
     }
-    void loadChart()
+
+    const panels = {
+      controls(trigger) {
+        const panel = windows.open({ key: 'controls', title: '地图控制', width: 310, placement: 'controls', trigger })
+        if (!panel.isNew) return
+        panel.body.innerHTML = `
+          <p class="panel-intro">浙江省 11 个地级市</p>
+          <div class="indicator-picker"></div>
+          <p class="map-context"></p>
+          <div class="selection-heading"><h3>选择城市 <span class="selection-count"></span></h3><button type="button" class="clear-selection">清空</button></div>
+          <div class="city-picker" aria-label="选择城市，可多选"></div>
+          <p class="selection-summary" aria-live="polite"></p>
+          <button type="button" class="primary compare-selection">生成历年趋势</button>`
+        panel.onClose(createIndicatorPicker({ target: panel.body.querySelector('.indicator-picker'), store }))
+        const buttons = cities.map((city) => {
+          const button = document.createElement('button')
+          button.type = 'button'
+          button.textContent = city.short_name
+          button.addEventListener('click', () => toggleCity(store, city.adcode))
+          panel.body.querySelector('.city-picker').append(button)
+          return [city, button]
+        })
+        const render = ({ year, indicator, selectedCities }) => {
+          const metadata = store.indicators.get(indicator)
+          panel.body.querySelector('.map-context').textContent = `${year} 年${year === 2025 ? ' · 初步数据' : ''}`
+          panel.body.querySelector('.selection-count').textContent = selectedCities.length ? `(${selectedCities.length})` : ''
+          panel.body.querySelector('.clear-selection').disabled = !selectedCities.length
+          for (const [city, button] of buttons) {
+            const value = formatValue(store.getValue(indicator, year, city.adcode), metadata)
+            button.setAttribute('aria-pressed', String(selectedCities.includes(city.adcode)))
+            button.setAttribute('aria-label', `${city.short_name}，${value}${value === '无数据' ? '' : metadata.unit}`)
+            button.title = `${city.short_name}：${value} ${metadata.unit}`
+          }
+          panel.body.querySelector('.selection-summary').textContent = selectedCities.length
+            ? `已选 ${selectedCities.map((code) => store.regions.get(code).short_name).join('、')}`
+            : '点击地图或城市名称可多选。'
+        }
+        render(store.getState())
+        panel.onClose(store.subscribe(render))
+        panel.body.querySelector('.clear-selection').addEventListener('click', () => store.setState({ selectedCities: [] }))
+        panel.body.querySelector('.compare-selection').addEventListener('click', (event) => openChart('line', event.currentTarget))
+      },
+      legend(trigger) {
+        const panel = windows.open({ key: 'legend', title: '地图图例', width: 254, placement: 'legend', trigger })
+        if (panel.isNew) panel.onClose(createLegend({ target: panel.body, store, classifications }))
+      },
+      timeline(trigger) {
+        const panel = windows.open({ key: 'timeline', title: '时间轴', width: 570, placement: 'timeline', trigger })
+        if (!panel.isNew) return
+        panel.body.classList.add('timeline')
+        panel.onClose(createTimeline({ target: panel.body, store, player }))
+        panel.onClose(() => player.pause())
+      },
+      charts(trigger) {
+        const panel = windows.open({ key: 'charts', title: '新建图表', width: 320, placement: 'chooser', trigger })
+        if (!panel.isNew) return
+        panel.body.innerHTML = `
+          <p class="panel-intro">每次生成一个独立窗口</p>
+          <div class="chart-choices">
+            <button type="button" data-chart="pie"><strong>人口占比</strong><span>环形图 · 各市常住人口构成</span></button>
+            <button type="button" data-chart="rank"><strong>城市排行</strong><span>条形图 · 当前指标大小对比</span></button>
+            <button type="button" data-chart="line"><strong>历年趋势</strong><span>折线图 · 多城市年度变化</span></button>
+          </div>
+          <p class="chart-note">保留生成时的年份、指标与城市范围。未选城市时使用全省 11 市。</p>`
+        panel.body.querySelectorAll('[data-chart]').forEach((button) => button.addEventListener('click', () => openChart(button.dataset.chart, button)))
+      },
+      notes(trigger) {
+        const panel = windows.open({ key: 'notes', title: '数据说明', width: 350, placement: 'chooser', trigger })
+        if (!panel.isNew) return
+        panel.body.classList.add('data-notes')
+        const note = document.createElement('p')
+        note.textContent = store.indicators.get('pop_resident').note
+        panel.body.append(note)
+        for (const text of [
+          '人口密度读取预计算值；缺失值显示为“无数据”，不补零。密度采用城市排行和趋势图展示。',
+          '人口占比按当前范围内各市常住人口合计计算，不提供人口密度占比。',
+          '图表保留创建时的条件，切换地图不会改写已有图表。再次生成可对比不同年份或城市范围。',
+          '边界原始来源、许可、坐标参考与区划年份尚待确认。',
+        ]) {
+          const paragraph = document.createElement('p')
+          paragraph.textContent = text
+          panel.body.append(paragraph)
+        }
+      },
+    }
+    const toolbar = document.querySelector('.workspace-tools')
+    const handleToolbar = (event) => {
+      const button = event.target.closest('button')
+      if (!button) return
+      if (button.dataset.open) panels[button.dataset.open](button)
+      if (button.id === 'reset-view') cityMap.resetView()
+      if (button.id === 'close-all') { windows.closeAll(); announce('已关闭全部悬浮窗口') }
+    }
+    toolbar.addEventListener('click', handleToolbar)
+    cleanups.push(() => toolbar.removeEventListener('click', handleToolbar))
+    toolbar.querySelectorAll('button').forEach((button) => { button.disabled = false })
+    loading.close({ restoreFocus: false })
+    if (window.matchMedia('(min-width: 761px)').matches) panels.controls()
+    if (window.matchMedia('(min-width: 761px) and (min-height: 860px)').matches) panels.legend()
+    panels.timeline()
+    announce('统计数据与 11 市地图已就绪，可从新建图表生成可视化窗口。')
   } catch (error) {
     if (disposed) return
-    cleanups.splice(0).reverse().forEach((cleanup) => cleanup())
-    document.querySelector('#content').hidden = true
     console.error('数据初始化失败', error)
-    status.classList.add('error')
-    status.textContent = `地图初始化失败：${error.message}`
+    windows.closeAll()
+    cleanups.splice(1).reverse().forEach((cleanup) => cleanup())
+    loading.close({ restoreFocus: false })
+    const failure = windows.open({ key: 'error', title: '地图加载失败', width: 360, placement: 'center' })
+    failure.body.setAttribute('role', 'alert')
+    failure.body.textContent = error.message
     const retry = document.createElement('button')
     retry.type = 'button'
     retry.textContent = '重新加载'
     retry.addEventListener('click', () => window.location.reload())
-    status.append(retry)
+    failure.body.append(retry)
   }
 }
 
-bootstrap()
-
+document.querySelectorAll('.workspace-tools button').forEach((button) => { button.disabled = true })
+void bootstrap()
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     disposed = true

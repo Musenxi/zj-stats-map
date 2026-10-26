@@ -29,7 +29,7 @@ export function createLegend({ target, store, classifications }) {
     }
     const note = document.createElement('p')
     note.className = 'legend-note'
-    note.textContent = `按 ${store.years[0]}–${store.years.at(-1)} 年全部数据的分位数固定分级；各年份共用断点。`
+    note.textContent = `按 ${store.years[0]} 至 ${store.years.at(-1)} 年全部数据的分位数固定分级；各年份共用断点。`
     target.replaceChildren(heading, list, note)
   }
   render(store.getState())
