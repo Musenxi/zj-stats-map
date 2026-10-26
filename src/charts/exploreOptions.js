@@ -16,7 +16,7 @@ export function createExploreOption(snapshot, type) {
   const base = {
     animation: false,
     textStyle: { fontFamily: '"Microsoft YaHei", sans-serif', color: '#526e65' },
-    aria: { enabled: true, label: { description: `${year} 年${metadata.label}，${metadata.unit}。${year === 2025 ? '初步数据。' : ''}缺失值不计入图表。` } },
+    aria: { enabled: true, label: { description: `${year} 年${metadata.label}，${metadata.unit}。` } },
     tooltip: { trigger: 'item', renderMode: 'richText', confine: true,
       formatter: ({ data, percent }) => `${data.name}\n${formatValue(data.value, metadata)} ${metadata.unit}${type === 'pie' ? `\n当前范围占比 ${percent}%` : ''}` },
   }
