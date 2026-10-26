@@ -2,23 +2,25 @@
 
 - `line.js`：选中城市的历年序列，支持多城市对比；标记当前年。
 - `lineOptions.js`：纯配置构建函数，生成序列、单位、工具提示、城市固定颜色与标注，供运行时及测试共用。
-- `snapshot.js`：捕获创建图表时的指标、年份和城市范围。
+- `snapshot.js`：提供静态快照和跟随时间轴的数据源，固定创建时的指标与城市范围。
 - `exploreOptions.js`：环形人口占比图、横向城市排行图的纯配置，并复用折线图配置。
 - `industryOptions.js`：产业占比雷达图、产业增加值堆叠图的纯配置，只展示完整三项数据的城市。
 - `colors.js`：跨图表稳定的城市配色。
 - `explore.js`：按需注册饼图、条形图、折线图、雷达图和所需组件，负责 SVG 渲染、点击事件与销毁。
 
-使用 `echarts/core` 按需引入图表及组件。通过 `store.getSeries(indicator, adcode)` 获取序列；缺失值保持 `null`，不插值。工作台图表捕获生成时的选择状态，地图与控件使用 `store.subscribe()` 同步共享状态。
+使用 `echarts/core` 按需引入图表及组件。通过 `store.getSeries(indicator, adcode)` 获取序列；缺失值保持 `null`，不插值。工作台图表固定创建时的指标和城市范围，订阅共享年份；地图与控件使用 `store.subscribe()` 同步共享状态。
 
-工作台入口在用户请求时动态导入 `explore.js`，每次请求新建窗口。`createChartSnapshot(store, type)` 保留生成时的状态，无选择时使用全部地级市，排除省级；饼图始终使用 `pop_resident`，不对密度做占比；产业图表固定读取三次产业指标，与地图当前指标无关。`createExploreOption(snapshot, type)` 接受 `pie/rank/line/radar/stack`，不修改共享 Store。图表使用条件快照，不订阅后续地图条件变化。
+工作台入口在用户请求时动态导入 `explore.js`，每次请求新建窗口。`createChartSnapshot(store, type)` 仍提供完全静态的条件快照；工作台使用 `createTimelineChartSource(store, type)` 固定指标和城市范围，`getState()` 读取共享最新年份，`subscribe()` 仅在年份改变时通知并返回取消订阅函数。无选择时使用全部地级市，排除省级；饼图始终使用 `pop_resident`，不对密度做占比；产业图表固定读取三次产业指标，与地图当前指标无关。`createExploreOption(snapshot, type)` 接受上述数据源和 `pie/rank/line/radar/stack`，不修改共享 Store。
 
-`createExploreChart({ target, snapshot, type, onSelectCity, onSelectYear })` 返回销毁函数。饼图、排行、雷达图和堆叠图点击调用 `onSelectCity(adcode)`，折线点选调用 `onSelectYear(year)`；入口更新地图选择，手动选年时暂停播放。图表数据保留生成时的条件，支持多个年份或城市范围并排对比。
+`createExploreChart({ target, snapshot, type, onSelectCity, onSelectYear })` 中 `snapshot` 传入时间轴数据源，返回销毁函数。饼图、排行、雷达图和堆叠图点击调用 `onSelectCity(adcode)`，折线点选调用 `onSelectYear(year)`；入口更新地图选择，手动选年时暂停播放。多个图表保留各自指标和城市范围，共享同一时间轴年份。
+
+滑块、逐年按钮、播放和折线点击都会触发年份更新：人口占比、排行、产业雷达与堆叠图更新当年数值，趋势图保留完整历年序列，仅移动当前年份虚线。窗口条件文案和无障碍标签同步更新；异步加载期间改变年份，首次渲染读取最新年份。更新时替换旧配置以清除过期城市及空状态，并保留图例显隐与翻页状态。
 
 饼图占比以本次城市范围内有效人口合计为分母。饼图与排行排除缺失观测，排行保留零值；无有效值时显示空状态，饼图人口合计为零时也不伪造占比。城市配色跨图表保持固定。生成失败可在当前窗口重试，模块加载失败提供重新加载页面入口，不影响地图；异步加载完成前检查窗口是否关闭，避免向已移除的节点初始化实例。
 
-原 `createLineChart({ target, store, onSelectYear })` 仍可用于订阅 Store 的趋势组件；当前工作台通过 `explore.js` 和条件快照渲染，避免新请求覆盖旧窗口。
+原 `createLineChart({ target, store, onSelectYear })` 仍可用于订阅完整 Store 的趋势组件；当前工作台通过 `explore.js` 和时间轴数据源渲染，避免新请求覆盖旧窗口。
 
-当前年份使用虚线，工具提示显示年份、城市数值和单位。ResizeObserver 同步容器尺寸，销毁时取消观察器并释放图表实例；原有订阅式趋势组件另行取消 Store 订阅。
+当前年份使用虚线，工具提示显示年份、城市数值和单位。ResizeObserver 同步容器尺寸，销毁时取消年份订阅和观察器并释放图表实例；窗口关闭时另行取消条件文案订阅，关闭后不再响应时间轴变化。
 
 排行和趋势图已支持任务 3 的三次产业增加值/预计算占比及任务 4 收入，单位和精度读取指标字典。人口占比图仍只读取常住人口。
 

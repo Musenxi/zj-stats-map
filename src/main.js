@@ -10,7 +10,7 @@ import { createLegend } from './ui/legend.js'
 import { createPlayer } from './ui/player.js'
 import { createTimeline } from './ui/timeline.js'
 import { createWindowManager } from './ui/windows.js'
-import { createChartSnapshot } from './charts/snapshot.js'
+import { createTimelineChartSource } from './charts/snapshot.js'
 
 const app = document.querySelector('#app')
 app.innerHTML = `
@@ -55,8 +55,8 @@ async function bootstrap() {
     const chartNames = { pie: '人口占比', rank: '城市排行', line: '历年趋势', radar: '产业占比', stack: '产业增加值' }
 
     function openChart(type, trigger) {
-      const snapshot = createChartSnapshot(store, type)
-      const { indicator, year, selectedCities } = snapshot.getState()
+      const snapshot = createTimelineChartSource(store, type)
+      const { indicator, selectedCities } = snapshot.getState()
       const metadata = snapshot.indicators.get(indicator)
       const scope = store.getState().selectedCities.length ? `所选 ${selectedCities.length} 市` : `全省 ${cities.length} 市`
       const panel = windows.open({ title: chartNames[type], width: type === 'line' ? 640 : 540, placement: 'chart', trigger })
@@ -65,14 +65,19 @@ async function bootstrap() {
       context.className = 'chart-context'
       const metric = type === 'radar' ? '三次产业占比（%）'
         : type === 'stack' ? '三次产业增加值（亿元）' : `${metadata.label}（${metadata.unit}）`
-      context.textContent = `${type === 'line' ? `${store.years[0]} - ${store.years.at(-1)}` : year} 年 · ${metric}，${scope}`
       const message = document.createElement('p')
       message.className = 'chart-message'
       message.setAttribute('role', 'status')
       const target = document.createElement('div')
       target.className = 'chart-canvas'
       target.setAttribute('role', 'img')
-      target.setAttribute('aria-label', `${context.textContent}，${chartNames[type]}`)
+      const renderContext = ({ year }) => {
+        const period = type === 'line' ? `${store.years[0]} - ${store.years.at(-1)} 年（当前 ${year} 年）` : `${year} 年`
+        context.textContent = `${period} · ${metric}，${scope}`
+        target.setAttribute('aria-label', `${context.textContent}，${chartNames[type]}`)
+      }
+      renderContext(snapshot.getState())
+      panel.onClose(snapshot.subscribe(renderContext))
       panel.body.append(context, message, target)
       const loadChart = async () => {
         message.replaceChildren(document.createTextNode('正在生成图表…'))
