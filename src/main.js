@@ -7,6 +7,8 @@ import { createClassifications } from './map/breaks.js'
 import { createCityMap, toggleCity } from './map/layers.js'
 import { createIndicatorPicker } from './ui/indicatorPicker.js'
 import { createLegend } from './ui/legend.js'
+import { createPlayer } from './ui/player.js'
+import { createTimeline } from './ui/timeline.js'
 
 const app = document.querySelector('#app')
 app.innerHTML = `
@@ -21,6 +23,7 @@ app.innerHTML = `
           <div><h2 id="map-title">市级专题地图</h2><p id="map-subtitle"></p></div>
           <div id="indicator-picker" class="indicator-picker"></div>
         </div>
+        <section id="timeline" class="timeline" aria-label="年份与播放控制"></section>
         <div class="map-layout">
           <div class="map-area">
             <div id="map" tabindex="0" role="region" aria-label="浙江省市级专题地图，可用方向键平移、加减键缩放；也可在下方数据表选择城市"></div>
@@ -37,6 +40,15 @@ app.innerHTML = `
             </section>
           </aside>
         </div>
+      </section>
+      <section class="panel chart-panel" aria-labelledby="line-title">
+        <div class="panel-heading chart-heading">
+          <div><h2 id="line-title">城市历年趋势</h2><p id="line-subtitle"></p></div>
+          <span>点击数据点可选年</span>
+        </div>
+        <p id="chart-status" class="chart-message" role="status">正在加载趋势图…</p>
+        <div id="line-chart" class="line-chart"></div>
+        <p class="chart-note">2020 年起含普查口径调整；2025 年为初步数据。缺失年份的折线保留断点。</p>
       </section>
       <section class="panel">
         <div class="panel-heading"><h2>市级数据概览</h2><span id="year"></span></div>
@@ -65,11 +77,16 @@ function metric(label, value) {
 }
 
 const cleanups = []
+const controller = new AbortController()
+let disposed = false
 
 async function bootstrap() {
   const status = document.querySelector('#status')
   try {
-    const store = createStore(await loadData())
+    const store = createStore(await loadData({ signal: controller.signal }))
+    if (disposed) return
+    const player = createPlayer(store)
+    cleanups.push(() => player.destroy())
     const cities = [...store.regions.values()].filter((region) => region.level === 'city')
     document.querySelector('#metrics').append(
       metric('地级市', cities.length),
@@ -95,6 +112,7 @@ async function bootstrap() {
       const metadata = store.indicators.get(indicator)
       document.querySelector('#year').textContent = `${year} 年`
       document.querySelector('#map-subtitle').textContent = `${year} 年 · ${metadata.label}（${metadata.unit}）`
+      document.querySelector('#line-subtitle').textContent = `${metadata.label}（${metadata.unit}） · ${store.years[0]}–${store.years.at(-1)}`
       for (const region of cities) {
         const row = rows.get(region.adcode)
         const selected = selectedCities.includes(region.adcode)
@@ -140,6 +158,7 @@ async function bootstrap() {
     cleanups.push(
       createIndicatorPicker({ target: document.querySelector('#indicator-picker'), store }),
       createLegend({ target: document.querySelector('#legend'), store, classifications }),
+      createTimeline({ target: document.querySelector('#timeline'), store, player }),
     )
     document.querySelector('#data-note').textContent = store.indicators.get('pop_resident').note
     document.querySelector('#content').hidden = false
@@ -156,7 +175,40 @@ async function bootstrap() {
     })
     status.textContent = '统计数据与 11 市地图已就绪'
     status.classList.add('success')
+    // Load only the ECharts modules used by the trend view in a separate chunk.
+    const chartStatus = document.querySelector('#chart-status')
+    const chartTarget = document.querySelector('#line-chart')
+    const loadChart = async () => {
+      chartStatus.textContent = '正在加载趋势图…'
+      chartTarget.hidden = false
+      try {
+        const { createLineChart } = await import('./charts/line.js')
+        if (disposed) return
+        cleanups.push(createLineChart({ target: chartTarget, store, onSelectYear: (year) => {
+          player.pause()
+          store.setState({ year })
+        } }))
+        const updateChartStatus = ({ selectedCities }) => {
+          chartStatus.hidden = selectedCities.length > 0
+          chartStatus.textContent = '从地图或下方数据表选择城市，比较历年变化。'
+        }
+        updateChartStatus(store.getState())
+        cleanups.push(store.subscribe(updateChartStatus))
+      } catch (error) {
+        if (disposed) return
+        console.error('趋势图加载失败', error)
+        chartTarget.hidden = true
+        chartStatus.textContent = `趋势图加载失败：${error.message}`
+        const retry = document.createElement('button')
+        retry.type = 'button'
+        retry.textContent = '重新加载页面'
+        retry.addEventListener('click', () => window.location.reload(), { once: true })
+        chartStatus.append(retry)
+      }
+    }
+    void loadChart()
   } catch (error) {
+    if (disposed) return
     cleanups.splice(0).reverse().forEach((cleanup) => cleanup())
     document.querySelector('#content').hidden = true
     console.error('数据初始化失败', error)
@@ -173,5 +225,9 @@ async function bootstrap() {
 bootstrap()
 
 if (import.meta.hot) {
-  import.meta.hot.dispose(() => cleanups.splice(0).reverse().forEach((cleanup) => cleanup()))
+  import.meta.hot.dispose(() => {
+    disposed = true
+    controller.abort()
+    cleanups.splice(0).reverse().forEach((cleanup) => cleanup())
+  })
 }

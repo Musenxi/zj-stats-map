@@ -70,6 +70,27 @@ tbody tr.selected { background: #fff6e9; }
 thead th.active-indicator { color: #205b51; background: #e8f3ed; font-weight: 650; }
 #status button { margin-left: 16px; }
 .ol-control button { margin: 1px; padding: 0; font-family: inherit; }
+.timeline { padding: 18px 24px; border-bottom: 1px solid #e0e8e5; background: #f8faf9; }
+.timeline-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 14px; }
+.timeline-heading label { font-weight: 600; }
+#current-year { color: #205b51; font-weight: 650; font-variant-numeric: tabular-nums; }
+#year-slider { width: 100%; margin: 6px 0; accent-color: #267768; cursor: pointer; }
+.year-ticks { display: flex; justify-content: space-between; font-size: 11px; color: #647b7c; font-variant-numeric: tabular-nums; }
+.playback-controls, .playback-buttons, .playback-options { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.playback-controls { justify-content: space-between; margin-top: 16px; }
+.playback-buttons button { margin: 0; font-size: 13px; border-color: #c5d6ce; background: #fff; }
+.playback-buttons #play-toggle { min-width: 86px; background: #267768; color: #fff; border-color: #267768; }
+.playback-options { font-size: 12px; color: #526e65; }
+.playback-options select { font-size: 12px; padding-top: 6px; padding-bottom: 6px; }
+.loop-label { display: flex; align-items: center; gap: 6px; }
+.loop-label input { margin: 0; accent-color: #267768; }
+#timeline-note { margin-top: 12px; color: #647b7c; font-size: 12px; }
+.chart-panel { margin-bottom: 24px; }
+.chart-heading { flex-wrap: wrap; }
+#line-subtitle { color: #647b7c; font-size: 13px; margin-top: 4px; }
+.line-chart { width: 100%; height: 380px; }
+.chart-message { padding: 64px 24px; text-align: center; color: #647b7c; font-size: 14px; }
+.chart-note { padding: 12px 24px 20px; color: #647b7c; font-size: 12px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 640px) {
   main { padding: 28px 16px; }
@@ -80,4 +101,10 @@ thead th.active-indicator { color: #205b51; background: #e8f3ed; font-weight: 65
   #map { height: 440px; }
   .map-heading { padding: 18px 16px; }
   .map-sidebar { border-left: 0; border-top: 1px solid #e0e8e5; padding: 20px 16px; }
+  .timeline { padding: 18px 16px; }
+  .year-ticks span:nth-child(even):not(:last-child) { visibility: hidden; }
+  .playback-controls { align-items: flex-start; gap: 14px; }
+  .chart-heading { padding: 18px 16px; }
+  .chart-note { padding: 12px 16px 18px; }
+  .line-chart { height: 340px; }
 }
