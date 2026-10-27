@@ -13,6 +13,7 @@ import { createWindowManager } from './ui/windows.js'
 import { createBubbleOverlay } from './map/overlay.js'
 import { createMapTooltip } from './ui/tooltip.js'
 import { createTimelineChartSource } from './charts/snapshot.js'
+import { loadChartType } from './charts/loadType.js'
 
 const app = document.querySelector('#app')
 app.innerHTML = `
@@ -65,9 +66,8 @@ async function bootstrap() {
 
     function openChart(type, trigger) {
       const snapshot = createTimelineChartSource(store, type)
-      const { indicator, selectedCities } = snapshot.getState()
+      const { indicator } = snapshot.getState()
       const metadata = snapshot.indicators.get(indicator)
-      const scope = store.getState().selectedCities.length ? `所选 ${selectedCities.length} 市` : `全省 ${cities.length} 市`
       const panel = windows.open({ title: chartNames[type], width: type === 'line' || type === 'radar' ? 640 : 540, placement: 'chart', trigger })
       panel.body.classList.add('chart-body')
       const context = document.createElement('p')
@@ -80,7 +80,8 @@ async function bootstrap() {
       const target = document.createElement('div')
       target.className = type === 'radar' ? 'chart-canvas chart-canvas-tall' : 'chart-canvas'
       target.setAttribute('role', 'img')
-      const renderContext = ({ year }) => {
+      const renderContext = ({ year, selectedCities }) => {
+        const scope = store.getState().selectedCities.length ? `所选 ${selectedCities.length} 市` : `全省 ${cities.length} 市`
         const period = type === 'line' ? `${store.years[0]} - ${store.years.at(-1)} 年（当前 ${year} 年）` : `${year} 年`
         context.textContent = `${period} · ${metric}，${scope}`
         target.setAttribute('aria-label', `${context.textContent}，${chartNames[type]}`)
@@ -94,7 +95,9 @@ async function bootstrap() {
         target.hidden = true
         let moduleLoaded = false
         try {
-          const { createExploreChart } = await import('./charts/explore.js')
+          const [{ createExploreChart }] = await Promise.all([
+            import('./charts/explore.js'), loadChartType(type),
+          ])
           moduleLoaded = true
           if (disposed || panel.closed) return
           target.hidden = false

@@ -17,7 +17,7 @@ INDICATOR_COLUMNS = ['indicator', 'label', 'unit', 'decimals', 'category', 'type
 SECTORS = ('primary', 'secondary', 'tertiary')
 GDP_TOTAL = '(gdp_primary+gdp_secondary+gdp_tertiary)'
 ACTIVE_INDICATORS = {
-    'pop_resident', 'pop_density', 'income_urban_pc',
+    'pop_resident', 'pop_density', 'income_urban_pc', 'gdp', 'gdp_per_capita',
     *('gdp_' + sector for sector in SECTORS),
     *('share_' + sector for sector in SECTORS),
 }
@@ -107,7 +107,7 @@ def load_metadata(data_dir):
             raise ValueError(f'{key}: invalid indicator metadata')
         indicators[key] = row
     if set(indicators) != ACTIVE_INDICATORS:
-        raise ValueError('indicators.csv must register the nine population, industry and income indicators')
+        raise ValueError('indicators.csv must register the eleven population, GDP, industry and income indicators')
     if indicators['pop_resident']['type'] != 'raw' or indicators['pop_density']['type'] != 'derived' or indicators['pop_density']['formula'] != 'pop_resident*10000/area_land':
         raise ValueError('task-one indicator types or density formula do not match the design')
     for sector in SECTORS:

@@ -1,11 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { init } from 'echarts/core'
-import '../src/charts/explore.js'
+import { loadChartType } from '../src/charts/explore.js'
 import { createChartSnapshot } from '../src/charts/snapshot.js'
 import { createExploreOption } from '../src/charts/exploreOptions.js'
 import { createStore } from '../src/data/store.js'
 import { PALETTE } from '../src/map/breaks.js'
+
+await Promise.all(['pie', 'rank', 'line'].map(loadChartType))
 
 function fixture() {
   return createStore({

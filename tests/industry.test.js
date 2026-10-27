@@ -2,11 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { init } from 'echarts/core'
-import '../src/charts/explore.js'
+import { loadChartType } from '../src/charts/explore.js'
 import { createChartSnapshot, createTimelineChartSource } from '../src/charts/snapshot.js'
 import { createExploreOption } from '../src/charts/exploreOptions.js'
 import { createStore } from '../src/data/store.js'
 import { parseData } from '../src/data/loader.js'
+
+await Promise.all(['pie', 'rank', 'line', 'radar', 'stack'].map(loadChartType))
 
 const keys = ['primary', 'secondary', 'tertiary']
 const codes = ['330100', '330200', '330300']
@@ -107,7 +109,7 @@ const [regionsText, indicatorsText, statsText, geoText] = await Promise.all(
 )
 const actualData = parseData({ regionsText, indicatorsText, statsText, geojson: JSON.parse(geoText) })
 
-test('all ten actual years expose all 11 cities and six source indicators without introducing task 2', () => {
+test('all ten actual years expose all 11 cities and six source indicators alongside the two registered task 2 indicators', () => {
   const store = createStore(actualData)
   for (const year of store.years) {
     store.setState({ year })
@@ -129,54 +131,93 @@ test('all ten actual years expose all 11 cities and six source indicators withou
       }
     })
   }
-  assert.equal(store.indicators.has('gdp'), false)
-  assert.equal(store.indicators.has('gdp_per_capita'), false)
-  assert.equal(store.recordCount, 990)
+  assert.equal(store.indicators.has('gdp'), true)
+  assert.equal(store.indicators.has('gdp_per_capita'), true)
+  assert.equal(store.recordCount, 1210)
 })
 
-test('all five chart sources follow the timeline while keeping their original indicator and cities', () => {
+test('all five chart sources follow the timeline and city selection while keeping their original indicator', () => {
   const store = createStore(actualData)
   store.setState({ selectedCities: ['330100', '330200'] })
   const types = ['pie', 'rank', 'line', 'radar', 'stack']
   const sources = types.map((type) => createTimelineChartSource(store, type))
   const updates = sources.map(() => [])
   const cleanups = sources.map((source, index) => source.subscribe((state) => updates[index].push(state.year)))
-  store.setState({ indicator: 'income_urban_pc', selectedCities: ['330300'] })
+  store.setState({ indicator: 'income_urban_pc' })
   assert.ok(updates.every((years) => years.length === 0))
+  store.setState({ selectedCities: ['330300'] })
   for (const year of [2016, 2019, 2025]) {
     store.setState({ year })
     sources.forEach((source, index) => {
       const state = source.getState()
       assert.equal(state.year, year)
-      assert.deepEqual(state.selectedCities, ['330100', '330200'])
+      assert.deepEqual(state.selectedCities, ['330300'])
       const option = createExploreOption(source, types[index])
       if (types[index] === 'line') {
         assert.equal(option.series[0].markLine.data[0].xAxis, String(year))
         assert.equal(option.series[0].data.length, 10)
       } else if (types[index] === 'radar') {
-        assert.deepEqual(option.series[0].data[0].value, keys.map((sector) => store.getValue(`share_${sector}`, year, '330100')))
+        assert.deepEqual(option.series[0].data[0].value, keys.map((sector) => store.getValue(`share_${sector}`, year, '330300')))
       } else if (types[index] === 'stack') {
-        assert.deepEqual(option.series.map((series) => series.data[0].value), keys.map((sector) => store.getValue(`gdp_${sector}`, year, '330100')))
+        assert.deepEqual(option.series.map((series) => series.data[0].value), keys.map((sector) => store.getValue(`gdp_${sector}`, year, '330300')))
       } else {
         assert.equal(state.indicator, 'pop_resident')
-        assert.equal(option.series[0].data.find((row) => row.adcode === '330100').value, store.getValue('pop_resident', year, '330100'))
+        assert.equal(option.series[0].data.find((row) => row.adcode === '330300').value, store.getValue('pop_resident', year, '330300'))
       }
     })
   }
-  assert.ok(updates.every((years) => years.join() === '2016,2019,2025'))
+  assert.ok(updates.every((years) => years.join() === '2025,2016,2019,2025'))
   cleanups.forEach((cleanup) => cleanup())
-  store.setState({ year: 2020 })
-  assert.ok(updates.every((years) => years.length === 3))
+  store.setState({ year: 2020, selectedCities: ['330100'] })
+  assert.ok(updates.every((years) => years.length === 4))
   const next = createTimelineChartSource(store, 'rank')
   assert.equal(next.getState().indicator, 'income_urban_pc')
-  assert.deepEqual(next.getState().selectedCities, ['330300'])
+  assert.deepEqual(next.getState().selectedCities, ['330100'])
 })
 
-test('a source created before chart loading uses the latest year and follows playback', () => {
+test('open charts replace city data immediately and restore all cities when selection is cleared', () => {
+  const store = createStore(actualData)
+  const allCodes = actualData.regions.filter((region) => region.level === 'city').map((region) => region.adcode)
+  for (const type of ['pie', 'rank', 'line', 'radar', 'stack']) {
+    store.setState({ selectedCities: [] })
+    const source = createTimelineChartSource(store, type)
+    const chart = init(null, null, { renderer: 'svg', ssr: true, width: 540, height: 330 })
+    let renders = 0
+    const render = () => {
+      chart.setOption(createExploreOption(source, type), { notMerge: true })
+      renders++
+    }
+    const unsubscribe = source.subscribe(render)
+    try {
+      render()
+      for (const selectedCities of [['330100'], ['330100', '330200'], ['330200'], []]) {
+        const before = renders
+        store.setState({ selectedCities })
+        assert.equal(renders, before + 1, `${type} must update on selection`)
+        const expected = selectedCities.length ? selectedCities : allCodes
+        assert.deepEqual(source.getState().selectedCities, expected)
+        const option = chart.getOption()
+        const displayed = type === 'line' || type === 'radar'
+          ? option.series.map((series) => series.id)
+          : option.series[0].data.map((row) => row.adcode)
+        assert.deepEqual([...displayed].sort(), [...expected].sort(), `${type} must remove stale cities`)
+        const svg = chart.renderToSVGString()
+        assert.match(svg, /<svg/)
+        assert.doesNotMatch(svg, /NaN|undefined/)
+      }
+      const before = renders
+      store.setState({ selectedCities: [] })
+      assert.equal(renders, before)
+    } finally { unsubscribe(); chart.dispose() }
+  }
+})
+
+test('a source created before chart loading uses the latest year and cities and follows playback', () => {
   const store = createStore(actualData)
   const source = createTimelineChartSource(store, 'rank')
-  store.setState({ year: 2016 })
+  store.setState({ year: 2016, selectedCities: ['330200'] })
   assert.equal(source.getState().year, 2016)
+  assert.deepEqual(source.getState().selectedCities, ['330200'])
   const updates = []
   const unsubscribe = source.subscribe((state) => updates.push(state.year))
   store.setState({ year: 2016 })

@@ -60,9 +60,11 @@ export function createExploreOption(snapshot, type) {
       emphasis: { scaleSize: 5 }, data: rows }],
   }
   rows.sort((a, b) => b.value - a.value)
+  // Reserve space for full formatted values, including large per-capita GDP.
+  const valueLabelWidth = Math.max(...rows.map((row) => formatValue(row.value, metadata).length)) * 7
   return {
     ...base,
-    grid: { left: 48, right: 74, top: 30, bottom: 34 },
+    grid: { left: 48, right: Math.max(74, valueLabelWidth + 16), top: 30, bottom: 34 },
     xAxis: { type: 'value', axisLabel: { hideOverlap: true, fontSize: 11 }, splitLine: { lineStyle: { color: '#eaf0ef' } } },
     yAxis: { type: 'category', inverse: true, data: rows.map((row) => row.name), axisTick: { show: false }, axisLine: { show: false } },
     series: [{ type: 'bar', barMaxWidth: 18, data: rows,

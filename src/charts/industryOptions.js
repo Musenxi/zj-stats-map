@@ -80,7 +80,7 @@ export function createIndustryOption(snapshot, type) {
         const { col, line } = cell(index)
         return {
           center: [`${(col + 0.5) * cellWidth}%`, `${top + (line + 0.55) * cellHeight}%`],
-          radius, splitNumber: 3, nameGap: 3,
+          radius, splitNumber: 3, axisNameGap: 3,
           indicator: SHORT_NAMES.map((name, axis) => ({ name, ...ranges[axis] })),
           axisName: { color: '#8a94a0', fontSize: 10 },
           splitArea: { areaStyle: { color: ['#fff', '#f6f8fa'] } },

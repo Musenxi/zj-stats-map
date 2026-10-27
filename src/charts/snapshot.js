@@ -13,18 +13,28 @@ export function createChartSnapshot(store, type) {
   return { ...store, getState: () => state }
 }
 
-/** Keep each chart's metric and city scope while following the shared timeline. */
+/** Keep each chart's metric while following the shared timeline and city selection. */
 export function createTimelineChartSource(store, type) {
   const snapshot = createChartSnapshot(store, type)
-  const getState = () => Object.freeze({ ...snapshot.getState(), year: store.getState().year })
+  const allCities = Object.freeze([...store.regions.values()]
+    .filter((region) => region.level === 'city').map((region) => region.adcode))
+  const getState = () => {
+    const { year, selectedCities } = store.getState()
+    return Object.freeze({
+      ...snapshot.getState(), year,
+      selectedCities: selectedCities.length ? selectedCities : allCities,
+    })
+  }
   return {
     ...snapshot,
     getState,
     subscribe(listener) {
-      let year = store.getState().year
+      let previous = store.getState()
       return store.subscribe((state) => {
-        if (state.year === year) return
-        year = state.year
+        const changed = state.year !== previous.year ||
+          state.selectedCities.join() !== previous.selectedCities.join()
+        previous = state
+        if (!changed) return
         listener(getState())
       })
     },

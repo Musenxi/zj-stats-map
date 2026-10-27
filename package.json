@@ -8,7 +8,8 @@
     "data:check": "python scripts/merge_stats.py --check",
     "data:merge": "python scripts/merge_stats.py",
     "prebuild": "npm run data:check",
-    "build": "vite build",
+    "build": "vite build --manifest",
+    "build:check": "npm run build && node scripts/check_bundle.mjs",
     "preview": "vite preview",
     "test": "node --test && python -m unittest discover -s tests -p test_*.py"
   },

@@ -3,10 +3,11 @@ export const ACTIVE_INDICATORS = Object.freeze([
   'gdp_primary', 'gdp_secondary', 'gdp_tertiary',
   'share_primary', 'share_secondary', 'share_tertiary',
   'income_urban_pc',
+  'gdp', 'gdp_per_capita',
 ])
 
 /** 总量指标用比例符号（气泡面积）表达，比率与人均指标用分级设色表达。 */
-export const COUNT_INDICATORS = Object.freeze(['pop_resident', 'gdp_primary', 'gdp_secondary', 'gdp_tertiary'])
+export const COUNT_INDICATORS = Object.freeze(['pop_resident', 'gdp', 'gdp_primary', 'gdp_secondary', 'gdp_tertiary'])
 export const isCountIndicator = (indicator) => COUNT_INDICATORS.includes(indicator)
 
 export function formatValue(value, metadata = {}) {
