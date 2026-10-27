@@ -45,19 +45,21 @@ for (const indicator of ['gdp', 'gdp_per_capita']) {
     }
   })
 
-  test(`${indicator}: independent windows follow years while preserving metric and city scope`, () => {
+  test(`${indicator}: independent windows follow years and cities while preserving metric`, () => {
     const store = createStore(data)
     store.setState({ indicator, selectedCities: ['330100', '330200'] })
     const source = createTimelineChartSource(store, 'rank')
     const changes = []
     const unsubscribe = source.subscribe((state) => changes.push(state))
-    store.setState({ indicator: 'pop_density', selectedCities: ['330300'] })
+    store.setState({ indicator: 'pop_density' })
     assert.equal(changes.length, 0)
+    store.setState({ selectedCities: ['330300'] })
+    assert.deepEqual(changes[0], { indicator, year: 2025, selectedCities: ['330300'] })
     store.setState({ year: 2016 })
-    assert.deepEqual(changes[0], { indicator, year: 2016, selectedCities: ['330100', '330200'] })
+    assert.deepEqual(changes[1], { indicator, year: 2016, selectedCities: ['330300'] })
     unsubscribe()
     store.setState({ year: 2020 })
-    assert.equal(changes.length, 1)
+    assert.equal(changes.length, 2)
   })
 
   test(`${indicator}: rank and trend render at desktop and narrow window sizes`, () => {
