@@ -18,8 +18,8 @@ test('actual data preserves string codes and explicitly parses numerical fields'
   const data = parse()
   assert.equal(data.regions.length, 12)
   assert.equal(data.geojson.features.length, 11)
-  assert.equal(data.stats.length, 990)
-  assert.equal(data.indicators.length, 9)
+  assert.equal(data.stats.length, 1210)
+  assert.equal(data.indicators.length, 11)
   assert.equal(data.regions[0].area_land, null)
   assert.equal(data.regions[1].adcode, '330100')
   assert.equal(data.regions[1].area_land, 16873.5)
@@ -37,9 +37,9 @@ test('numeric source GeoJSON codes are normalized without mutating the source', 
   assert.equal(geojson.features[0].properties.adcode, 330100)
 })
 
-test('new industry and income indicators feed rankings and trends with registered units', () => {
+test('GDP, industry and income indicators feed rankings and trends with registered units', () => {
   const store = createStore(parse())
-  for (const indicator of ['gdp_primary', 'gdp_secondary', 'gdp_tertiary', 'share_primary', 'share_secondary', 'share_tertiary', 'income_urban_pc']) {
+  for (const indicator of ['gdp_primary', 'gdp_secondary', 'gdp_tertiary', 'share_primary', 'share_secondary', 'share_tertiary', 'income_urban_pc', 'gdp', 'gdp_per_capita']) {
     store.setState({ indicator, year: 2025 })
     const rank = createExploreOption(createChartSnapshot(store, 'rank'), 'rank')
     assert.equal(rank.series[0].data.length, 11)
@@ -66,7 +66,7 @@ test('duplicate primary keys, unknown regions, unknown indicators, and invalid v
   const duplicateRows = [...statsText.trim().split(/\r?\n/), firstRow, ''].join('\n')
   assert.throws(() => parse({ statsText: duplicateRows }), /主键重复/)
   assert.throws(() => parse({ statsText: statsText.replace('330100,2016', '330999,2016') }), /未登记/)
-  assert.throws(() => parse({ statsText: statsText.replace('pop_resident,918.8', 'gdp,918.8') }), /指标未登记/)
+  assert.throws(() => parse({ statsText: statsText.replace('pop_resident,918.8', 'unknown_gdp,918.8') }), /指标未登记/)
   for (const value of ['', 'NaN', 'Infinity', '-']) {
     assert.throws(() => parse({ statsText: statsText.replace('pop_resident,918.8', `pop_resident,${value}`) }), /有效数值/)
   }
@@ -111,7 +111,7 @@ test('state supports multiple cities and notifies once per change, then unsubscr
 test('invalid selections do not change the state', () => {
   const store = createStore(parse())
   const initial = store.getState()
-  for (const patch of [{ year: 2000 }, { indicator: 'gdp' }, { selectedCities: ['330000'] }, { selectedCities: [330100] }, { unknown: true }]) {
+  for (const patch of [{ year: 2000 }, { indicator: 'unknown_gdp' }, { selectedCities: ['330000'] }, { selectedCities: [330100] }, { unknown: true }]) {
     assert.throws(() => store.setState(patch))
     assert.equal(store.getState(), initial)
   }
@@ -135,7 +135,7 @@ test('HTTP loader uses the supplied base path and loads each asset once', async 
     assert.equal(options.signal, controller.signal)
     return new Response(responses.get(url.replace('/nested/data/', '')))
   })
-  assert.equal((await loadData({ baseUrl: '/nested/data/', signal: controller.signal })).stats.length, 990)
+  assert.equal((await loadData({ baseUrl: '/nested/data/', signal: controller.signal })).stats.length, 1210)
   assert.equal(new Set(requests).size, 4)
   assert.ok(requests.every((url) => url.startsWith('/nested/data/')))
 })

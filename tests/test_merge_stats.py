@@ -19,8 +19,8 @@ class DataPipelineTests(unittest.TestCase):
 
     def test_current_data_has_full_coverage(self):
         report = pipeline.validate(self.rows, DATA_DIR)
-        self.assertEqual(report['rows'], 990)
-        self.assertEqual(report['expected'], 990)
+        self.assertEqual(report['rows'], 1210)
+        self.assertEqual(report['expected'], 1210)
         self.assertEqual(report['missing'], 0)
         self.assertEqual(report['densities_checked'], 110)
         self.assertEqual(report['shares_checked'], 330)
@@ -36,7 +36,7 @@ class DataPipelineTests(unittest.TestCase):
                     pipeline.read_csv(path, pipeline.STATS_COLUMNS)
 
     def test_bad_codes_unknown_indicators_and_years_are_rejected(self):
-        for field, value in [('adcode', '33010'), ('adcode', '330999'), ('adcode', '330000'), ('indicator', 'gdp'), ('year', '2016.0')]:
+        for field, value in [('adcode', '33010'), ('adcode', '330999'), ('adcode', '330000'), ('indicator', 'unknown_gdp'), ('year', '2016.0')]:
             with self.subTest(field=field, value=value):
                 rows = copy.deepcopy(self.rows)
                 rows[0][field] = value
@@ -69,7 +69,7 @@ class DataPipelineTests(unittest.TestCase):
         rows = [row for row in self.rows if row is not self.density]
         report = pipeline.validate(rows, DATA_DIR)
         self.assertEqual(report['missing'], 1)
-        self.assertEqual(report['rows'], 989)
+        self.assertEqual(report['rows'], 1209)
         with self.assertRaisesRegex(ValueError, 'population required'):
             pipeline.validate([row for row in self.rows if not (row['adcode'] == '330100' and row['year'] == '2016' and row['indicator'] == 'pop_resident')], DATA_DIR)
 
@@ -84,7 +84,7 @@ class DataPipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'GDP formula'):
             pipeline.validate(changed({'share_primary': '3.76'}), DATA_DIR)
         # Each rounded value is within formula tolerance, but their sum is invalid.
-        gdp = {row['indicator']: Decimal(row['value']) for row in self.rows if row['adcode'] == '330100' and row['year'] == '2016' and row['indicator'].startswith('gdp_')}
+        gdp = {row['indicator']: Decimal(row['value']) for row in self.rows if row['adcode'] == '330100' and row['year'] == '2016' and row['indicator'] in {'gdp_' + sector for sector in pipeline.SECTORS}}
         inflated = {f'share_{sector}': str(gdp[f'gdp_{sector}'] / sum(gdp.values()) * 100 + Decimal('0.006')) for sector in pipeline.SECTORS}
         with self.assertRaisesRegex(ValueError, 'sum to 100'):
             pipeline.validate(changed(inflated), DATA_DIR)
@@ -143,7 +143,7 @@ class DataPipelineTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(pipeline.main(args), 0)
             original = output.read_bytes()
-            self.assertEqual(pipeline.validate(pipeline.read_csv(output, pipeline.STATS_COLUMNS), DATA_DIR)['rows'], 990)
+            self.assertEqual(pipeline.validate(pipeline.read_csv(output, pipeline.STATS_COLUMNS), DATA_DIR)['rows'], 1210)
             pipeline.write_stats([self.rows[0], self.rows[0]], sources[1])
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(pipeline.main(args), 1)

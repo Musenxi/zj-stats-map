@@ -61,7 +61,7 @@ export function parseData({ regionsText, indicatorsText, statsText, geojson }) {
   const indicatorCodes = new Set(indicators.map((item) => item.indicator))
   if (indicatorCodes.size !== indicators.length || indicators.length !== ACTIVE_INDICATORS.length ||
       ACTIVE_INDICATORS.some((indicator) => !indicatorCodes.has(indicator))) {
-    throw new Error('指标字典必须登记人口、产业结构和收入的九个指标')
+    throw new Error('指标字典必须登记人口、GDP、产业结构和收入的十一个指标')
   }
   if (geojson?.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
     throw new Error('市级边界必须是 GeoJSON FeatureCollection')

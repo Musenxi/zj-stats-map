@@ -99,7 +99,7 @@ const [regionsText, indicatorsText, statsText, geoText] = await Promise.all(
 )
 const actualData = parseData({ regionsText, indicatorsText, statsText, geojson: JSON.parse(geoText) })
 
-test('all ten actual years expose all 11 cities and six source indicators without introducing task 2', () => {
+test('all ten actual years expose all 11 cities and six source indicators alongside the two registered task 2 indicators', () => {
   const store = createStore(actualData)
   for (const year of store.years) {
     store.setState({ year })
@@ -121,9 +121,9 @@ test('all ten actual years expose all 11 cities and six source indicators withou
       }
     })
   }
-  assert.equal(store.indicators.has('gdp'), false)
-  assert.equal(store.indicators.has('gdp_per_capita'), false)
-  assert.equal(store.recordCount, 990)
+  assert.equal(store.indicators.has('gdp'), true)
+  assert.equal(store.indicators.has('gdp_per_capita'), true)
+  assert.equal(store.recordCount, 1210)
 })
 
 test('all five chart sources follow the timeline while keeping their original indicator and cities', () => {

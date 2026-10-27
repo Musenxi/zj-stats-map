@@ -3,6 +3,7 @@ export const ACTIVE_INDICATORS = Object.freeze([
   'gdp_primary', 'gdp_secondary', 'gdp_tertiary',
   'share_primary', 'share_secondary', 'share_tertiary',
   'income_urban_pc',
+  'gdp', 'gdp_per_capita',
 ])
 
 export function formatValue(value, metadata = {}) {

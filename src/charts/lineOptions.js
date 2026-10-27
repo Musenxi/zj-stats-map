@@ -11,7 +11,8 @@ export function createLineOption(store) {
     textStyle: { fontFamily: '"Microsoft YaHei", sans-serif', color: '#526e65' },
     aria: { enabled: true, label: { description: `${metadata.label}历年变化，当前年份 ${year} 年。` } },
     legend: { type: 'scroll', top: 4, left: 12, right: 12, selectedMode: false },
-    grid: { left: 76, right: 28, top: 90, bottom: 42 },
+    grid: { left: 12, right: 28, top: 90, bottom: 42,
+      outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' },
     tooltip: {
       trigger: 'axis', renderMode: 'richText', confine: true,
       formatter(params) {
