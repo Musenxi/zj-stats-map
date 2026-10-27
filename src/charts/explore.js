@@ -1,12 +1,12 @@
 import { init, use } from 'echarts/core'
-import { BarChart, LineChart, PieChart, RadarChart } from 'echarts/charts'
-import { AriaComponent, GridComponent, LegendComponent, MarkLineComponent, TitleComponent, TooltipComponent } from 'echarts/components'
+import { AriaComponent, LegendComponent, TitleComponent, TooltipComponent } from 'echarts/components'
 import { SVGRenderer } from 'echarts/renderers'
 import { LabelLayout } from 'echarts/features'
 import { createExploreOption } from './exploreOptions.js'
 
-use([BarChart, LineChart, PieChart, RadarChart, AriaComponent, GridComponent, LegendComponent,
-  MarkLineComponent, TitleComponent, TooltipComponent, LabelLayout, SVGRenderer])
+use([AriaComponent, LegendComponent, TitleComponent, TooltipComponent, LabelLayout, SVGRenderer])
+
+export { loadChartType } from './loadType.js'
 
 export function createExploreChart({ target, snapshot, type, onSelectCity, onSelectYear }) {
   const chart = init(target, null, { renderer: 'svg' })

@@ -2,11 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { init } from 'echarts/core'
-import '../src/charts/explore.js'
+import { loadChartType } from '../src/charts/explore.js'
 import { createChartSnapshot, createTimelineChartSource } from '../src/charts/snapshot.js'
 import { createExploreOption } from '../src/charts/exploreOptions.js'
 import { createStore } from '../src/data/store.js'
 import { parseData } from '../src/data/loader.js'
+
+await Promise.all(['pie', 'rank', 'line', 'radar', 'stack'].map(loadChartType))
 
 const keys = ['primary', 'secondary', 'tertiary']
 const codes = ['330100', '330200', '330300']

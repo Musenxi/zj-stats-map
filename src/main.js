@@ -11,6 +11,7 @@ import { createPlayer } from './ui/player.js'
 import { createTimeline } from './ui/timeline.js'
 import { createWindowManager } from './ui/windows.js'
 import { createTimelineChartSource } from './charts/snapshot.js'
+import { loadChartType } from './charts/loadType.js'
 
 const app = document.querySelector('#app')
 app.innerHTML = `
@@ -85,7 +86,9 @@ async function bootstrap() {
         target.hidden = true
         let moduleLoaded = false
         try {
-          const { createExploreChart } = await import('./charts/explore.js')
+          const [{ createExploreChart }] = await Promise.all([
+            import('./charts/explore.js'), loadChartType(type),
+          ])
           moduleLoaded = true
           if (disposed || panel.closed) return
           target.hidden = false

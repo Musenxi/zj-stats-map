@@ -2,13 +2,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { init } from 'echarts/core'
-import '../src/charts/explore.js'
+import { loadChartType } from '../src/charts/explore.js'
 import { parseData } from '../src/data/loader.js'
 import { createStore } from '../src/data/store.js'
 import { formatValue } from '../src/data/indicators.js'
 import { createClassifications } from '../src/map/breaks.js'
 import { createTimelineChartSource } from '../src/charts/snapshot.js'
 import { createExploreOption } from '../src/charts/exploreOptions.js'
+
+await Promise.all(['rank', 'line'].map(loadChartType))
 
 const [regionsText, indicatorsText, statsText, geoText] = await Promise.all(
   ['regions.csv', 'indicators.csv', 'stats.csv', 'geo/zhejiang_city.json']
